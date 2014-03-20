@@ -167,6 +167,10 @@ public class BaseImageDecoder implements ImageDecoder {
 		return decodingOptions;
 	}
 
+	/**
+	 * 如果imageStream为网络流 且之前已下载过一次到文件但失败了 这时decode还是从网络流读取 所以需要reset...
+	 * LoadAndDisplayImageTask 237
+	 */
 	protected InputStream resetStream(InputStream imageStream, ImageDecodingInfo decodingInfo) throws IOException {
 		try {
 			imageStream.reset();

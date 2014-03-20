@@ -139,6 +139,9 @@ public final class ImageLoaderConfiguration {
 		return new Builder(context).build();
 	}
 
+	/**
+	 * 默认ImageSize 屏幕宽高 不考虑旋转
+	 */
 	ImageSize getMaxImageSize() {
 		DisplayMetrics displayMetrics = resources.getDisplayMetrics();
 

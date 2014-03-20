@@ -16,6 +16,7 @@
 package com.nostra13.universalimageloader.core;
 
 import android.view.View;
+
 import com.nostra13.universalimageloader.core.assist.FailReason;
 import com.nostra13.universalimageloader.core.assist.FlushedInputStream;
 import com.nostra13.universalimageloader.core.listener.ImageLoadingListener;
@@ -32,6 +33,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
+ * 以WeakReference<ImageView> 存储当前任务的ImageView 在ImageView被释放后可取消当前任务
+ * 以HashMap<Integer, String> key为ImageView.hashcode()(由于调用的是Object.hashcode()能保证每个ImageView唯一)
+ * 		值为ImageView最后一次请求的uri 在ImageView请求的uri改变后 之前任务会被取消
+ * 以WeakHashMap<String, ReentrantLock>存储每个uri对应的任务的锁 相同uri的任务需等前一个任务结束后才可执行
  * {@link ImageLoader} engine which responsible for {@linkplain LoadAndDisplayImageTask display task} execution.
  *
  * @author Sergey Tarasevich (nostra13[at]gmail[dot]com)

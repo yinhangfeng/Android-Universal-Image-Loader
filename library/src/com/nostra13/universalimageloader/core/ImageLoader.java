@@ -21,6 +21,7 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.ImageView;
+
 import com.nostra13.universalimageloader.cache.disc.DiscCacheAware;
 import com.nostra13.universalimageloader.cache.memory.MemoryCacheAware;
 import com.nostra13.universalimageloader.core.assist.FailReason;
@@ -229,21 +230,28 @@ public class ImageLoader {
 			return;
 		}
 
+		//targetSize 图片的宽高 如果无法获取则取最大宽高
 		ImageSize targetSize = ImageSizeUtils.defineTargetSizeForView(imageAware, configuration.getMaxImageSize());
+		//memoryCacheKey uri_widthxheight hashcode值无法重复利用
 		String memoryCacheKey = MemoryCacheUtils.generateKey(uri, targetSize);
+		//将imageAware 对应的任务放入HashMap<Integer, String> cacheKeysForImageAwares
 		engine.prepareDisplayTaskFor(imageAware, memoryCacheKey);
 
+		//加载开始回调
 		listener.onLoadingStarted(uri, imageAware.getWrappedView());
 
 		Bitmap bmp = configuration.memoryCache.get(memoryCacheKey);
 		if (bmp != null && !bmp.isRecycled()) {
+			//图片在内存
 			if (configuration.writeLogs) L.d(LOG_LOAD_IMAGE_FROM_MEMORY_CACHE, memoryCacheKey);
 
 			if (options.shouldPostProcess()) {
+				//需要postProcessor处理
 				ImageLoadingInfo imageLoadingInfo = new ImageLoadingInfo(uri, imageAware, targetSize, memoryCacheKey,
 						options, listener, progressListener, engine.getLockForUri(uri));
 				ProcessAndDisplayImageTask displayTask = new ProcessAndDisplayImageTask(engine, bmp, imageLoadingInfo,
 						defineHandler(options));
+				//如果options保持默认 则为非同步 所以就算图片存在内存也会调用 handler.post() 设置图片
 				if (options.isSyncLoading()) {
 					displayTask.run();
 				} else {
@@ -254,17 +262,21 @@ public class ImageLoader {
 				listener.onLoadingComplete(uri, imageAware.getWrappedView(), bmp);
 			}
 		} else {
+			//设置设置加载图片
 			if (options.shouldShowImageOnLoading()) {
 				imageAware.setImageDrawable(options.getImageOnLoading(configuration.resources));
 			} else if (options.isResetViewBeforeLoading()) {
 				imageAware.setImageDrawable(null);
 			}
-
+			//构建加载信息对象
 			ImageLoadingInfo imageLoadingInfo = new ImageLoadingInfo(uri, imageAware, targetSize, memoryCacheKey,
 					options, listener, progressListener, engine.getLockForUri(uri));
+			//构建图片加载task
 			LoadAndDisplayImageTask displayTask = new LoadAndDisplayImageTask(engine, imageLoadingInfo,
 					defineHandler(options));
+			//执行task
 			if (options.isSyncLoading()) {
+				//...
 				displayTask.run();
 			} else {
 				engine.submit(displayTask);
@@ -469,11 +481,14 @@ public class ImageLoader {
 	 *                         {@linkplain com.nostra13.universalimageloader.core.DisplayImageOptions options} to make
 	 *                         this listener work.
 	 * @throws IllegalStateException if {@link #init(ImageLoaderConfiguration)} method wasn't called before
+	 * 一般非同步 最后在DisplayBitmapTask中调用listener.onLoadingComplete 一般在ui线程
+	 * 非ui线程调用loadImage 时 一般由taskDistributor回调
 	 */
 	public void loadImage(String uri, ImageSize targetImageSize, DisplayImageOptions options,
 						  ImageLoadingListener listener, ImageLoadingProgressListener progressListener) {
 		checkConfiguration();
 		if (targetImageSize == null) {
+			//不限定加载图片大小 按配置的最大 默认屏幕大小
 			targetImageSize = configuration.getMaxImageSize();
 		}
 		if (options == null) {

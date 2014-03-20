@@ -131,13 +131,16 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 			log(LOG_WAITING_FOR_IMAGE_LOADED);
 		}
 
+		//获取当前uri对应的锁 相同uri task同时只能执行一个
 		loadFromUriLock.lock();
 		Bitmap bmp;
 		try {
 			checkTaskNotActual();
 
+			//获取内存缓存
 			bmp = configuration.memoryCache.get(memoryCacheKey);
 			if (bmp == null) {
+				//从网络或文件加载bmp
 				bmp = tryLoadBitmap();
 				if (bmp == null) return; // listener callback already was fired
 
@@ -152,6 +155,7 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 					}
 				}
 
+				//存入内存缓存
 				if (bmp != null && options.isCacheInMemory()) {
 					log(LOG_CACHE_IMAGE_IN_MEMORY);
 					configuration.memoryCache.put(memoryCacheKey, bmp);
@@ -177,6 +181,7 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 			loadFromUriLock.unlock();
 		}
 
+		//构建显示task 并执行
 		DisplayBitmapTask displayBitmapTask = new DisplayBitmapTask(bmp, imageLoadingInfo, engine, loadedFrom);
 		displayBitmapTask.setLoggingEnabled(writeLogs);
 		runTask(displayBitmapTask, options.isSyncLoading(), handler, engine);
@@ -218,12 +223,14 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 	}
 
 	private Bitmap tryLoadBitmap() throws TaskCancelledException {
+		//获取图片File
 		File imageFile = getImageFileInDiscCache();
 
 		Bitmap bitmap = null;
 		try {
 			String cacheFileUri = Scheme.FILE.wrap(imageFile.getAbsolutePath());
 			if (imageFile.exists()) {
+				//文件存在则从文件获取bm
 				log(LOG_LOAD_IMAGE_FROM_DISC_CACHE);
 				loadedFrom = LoadedFrom.DISC_CACHE;
 
@@ -234,10 +241,12 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 				log(LOG_LOAD_IMAGE_FROM_NETWORK);
 				loadedFrom = LoadedFrom.NETWORK;
 
+				//如果要缓存到文件 且下载文件成功 则获得文件uri
 				String imageUriForDecoding =
 						options.isCacheOnDisc() && tryCacheImageOnDisc(imageFile) ? cacheFileUri : uri;
 
 				checkTaskNotActual();
+				//decode图片从文件 或网络stream
 				bitmap = decodeImage(imageUriForDecoding);
 
 				if (bitmap == null || bitmap.getWidth() <= 0 || bitmap.getHeight() <= 0) {
@@ -293,6 +302,8 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 		try {
 			loaded = downloadImage(targetFile);
 			if (loaded) {
+				//resize到不超过maxImageWidthForDiscCache
+				//maxImageWidthForDiscCache默认为0
 				int width = configuration.maxImageWidthForDiscCache;
 				int height = configuration.maxImageHeightForDiscCache;
 				if (width > 0 || height > 0) {
@@ -311,6 +322,10 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 		return loaded;
 	}
 
+	/**
+	 * 下载图片到文件
+	 * 由uri 决定图片源 即使是本地图片也会存入文件缓存
+	 */
 	private boolean downloadImage(File targetFile) throws IOException {
 		InputStream is = getDownloader().getStream(uri, options.getExtraForDownloader());
 		boolean loaded;
@@ -331,6 +346,7 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 	private boolean resizeAndSaveImage(File targetFile, int maxWidth, int maxHeight) throws IOException {
 		boolean saved = false;
 		// Decode image file, compress and re-save it
+		//获取decode参数 并decode
 		ImageSize targetImageSize = new ImageSize(maxWidth, maxHeight);
 		DisplayImageOptions specialOptions = new DisplayImageOptions.Builder().cloneFrom(options)
 				.imageScaleType(ImageScaleType.IN_SAMPLE_INT).build();
@@ -338,6 +354,7 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 				Scheme.FILE.wrap(targetFile.getAbsolutePath()), targetImageSize, ViewScaleType.FIT_INSIDE,
 				getDownloader(), specialOptions);
 		Bitmap bmp = decoder.decode(decodingInfo);
+		//process
 		if (bmp != null && configuration.processorForDiscCache != null) {
 			log(LOG_PROCESS_IMAGE_BEFORE_CACHE_ON_DISC);
 			bmp = configuration.processorForDiscCache.process(bmp);
@@ -345,6 +362,7 @@ final class LoadAndDisplayImageTask implements Runnable, IoUtils.CopyListener {
 				L.e(ERROR_PROCESSOR_FOR_DISC_CACHE_NULL, memoryCacheKey);
 			}
 		}
+		//存文件
 		if (bmp != null) {
 			OutputStream os = new BufferedOutputStream(new FileOutputStream(targetFile), BUFFER_SIZE);
 			try {
